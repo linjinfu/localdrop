@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="一个无需后端、可在手机浏览器运行的本地视频下载器。" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <title>LocalDrop · 手机视频下载器</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #080b16;
+        --panel: rgba(18, 25, 48, 0.82);
+        --panel-strong: #151d39;
+        --line: rgba(148, 163, 184, 0.2);
+        --text: #f8fafc;
+        --muted: #9aa7c2;
+        --accent: #8b7cff;
+        --accent-strong: #6d5dfc;
+        --cyan: #6ce7ff;
+        --success: #61e6aa;
+        --danger: #ff8b9e;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(109, 93, 252, 0.22), transparent 34%),
+          radial-gradient(circle at 100% 12%, rgba(108, 231, 255, 0.14), transparent 28%),
+          var(--bg);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, input, textarea { font: inherit; }
+      button { cursor: pointer; }
+      a { color: inherit; }
+
+      .shell {
+        width: min(100% - 32px, 760px);
+        margin: 0 auto;
+        padding: 16px 0 calc(48px + env(safe-area-inset-bottom));
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 4px 0 22px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 760;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--accent-strong), #27c5e9);
+        box-shadow: 0 10px 30px rgba(109, 93, 252, 0.32);
+      }
+
+      .brand-mark svg { width: 20px; height: 20px; }
+
+      .local-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 11px;
+        border: 1px solid rgba(97, 230, 170, 0.28);
+        border-radius: 999px;
+        color: #b6f8d9;
+        background: rgba(97, 230, 170, 0.08);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--success);
+        box-shadow: 0 0 0 4px rgba(97, 230, 170, 0.1);
+      }
+
+      .hero { padding: 26px 0 18px; text-align: center; }
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--cyan);
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 9vw, 58px);
+        line-height: 1.04;
+        letter-spacing: -0.06em;
+      }
+      .hero-copy {
+        max-width: 560px;
+        margin: 16px auto 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.7;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: linear-gradient(145deg, rgba(24, 34, 66, 0.88), rgba(13, 18, 34, 0.88));
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .input-card { padding: 18px; }
+      .field-label { display: block; margin: 0 0 10px; font-size: 13px; font-weight: 700; color: #d6dded; }
+      .input-wrap { position: relative; }
+      textarea {
+        width: 100%;
+        min-height: 112px;
+        resize: vertical;
+        padding: 16px 54px 16px 16px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 17px;
+        outline: none;
+        color: var(--text);
+        background: rgba(7, 11, 25, 0.56);
+        line-height: 1.55;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+      }
+      textarea::placeholder { color: #71809c; }
+      textarea:focus { border-color: rgba(139, 124, 255, 0.9); box-shadow: 0 0 0 4px rgba(139, 124, 255, 0.15); }
+      .paste-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        color: #d8def1;
+        background: rgba(148, 163, 184, 0.08);
+      }
+      .paste-button:active { transform: translateY(1px); }
+      .action-row { display: flex; gap: 10px; margin-top: 12px; }
+      .primary-button, .secondary-button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border-radius: 15px;
+        padding: 0 16px;
+        font-weight: 760;
+        transition: transform 160ms ease, filter 160ms ease, background 160ms ease;
+      }
+      .primary-button { flex: 1; border: 0; color: white; background: linear-gradient(135deg, var(--accent-strong), #2aa8df); box-shadow: 0 12px 28px rgba(72, 101, 242, 0.27); }
+      .secondary-button { border: 1px solid rgba(148, 163, 184, 0.2); color: #d8def1; background: rgba(148, 163, 184, 0.08); }
+      .primary-button:hover, .secondary-button:hover { filter: brightness(1.08); }
+      .primary-button:active, .secondary-button:active { transform: translateY(1px); }
+      .support-note { margin: 12px 2px 0; color: #7f8cab; font-size: 12px; line-height: 1.6; }
+
+      .result-card { display: none; margin-top: 16px; padding: 18px; }
+      .result-card.is-visible { display: block; animation: rise 240ms ease-out; }
+      @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      .result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .result-title { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
+      .result-type { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+      .status-pill { padding: 6px 9px; border-radius: 999px; color: #b6f8d9; background: rgba(97, 230, 170, 0.1); font-size: 11px; font-weight: 750; white-space: nowrap; }
+      .status-pill.warn { color: #ffd2d8; background: rgba(255, 139, 158, 0.1); }
+      .preview {
+        display: grid;
+        min-height: 180px;
+        margin-top: 14px;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 17px;
+        background: #070a13;
+      }
+      .preview video, .preview img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
+      .preview-empty { padding: 32px 20px; color: #8a98b3; font-size: 13px; line-height: 1.65; text-align: center; }
+      .result-actions { display: flex; gap: 10px; margin-top: 14px; }
+      .result-actions a, .result-actions button { flex: 1; text-decoration: none; }
+      .result-help { margin: 13px 1px 0; color: #93a0ba; font-size: 12px; line-height: 1.65; }
+      .quality-list { display: grid; gap: 8px; margin-top: 14px; }
+      .quality-link { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 13px; color: #eef2ff; background: rgba(148, 163, 184, 0.07); text-decoration: none; font-size: 13px; font-weight: 700; }
+      .quality-link span:last-child { color: var(--cyan); }
+      .resolver-settings { padding: 0 16px; }
+      .resolver-content { padding: 0 0 16px; }
+      .resolver-input { width: 100%; min-height: 46px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 13px; outline: none; color: var(--text); background: rgba(7, 11, 25, 0.56); }
+      .resolver-input:focus { border-color: rgba(139, 124, 255, 0.9); box-shadow: 0 0 0 4px rgba(139, 124, 255, 0.15); }
+
+      .section { margin-top: 42px; }
+      .section-heading { margin: 0 0 14px; font-size: 22px; letter-spacing: -0.04em; }
+      .section-lead { margin: -4px 0 18px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+      .steps { display: grid; gap: 10px; }
+      .step { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: rgba(18, 25, 48, 0.6); }
+      .step-number { display: grid; flex: 0 0 32px; height: 32px; place-items: center; border-radius: 11px; color: #fff; background: linear-gradient(135deg, #6d5dfc, #2aa8df); font-weight: 800; }
+      .step h3 { margin: 0 0 4px; font-size: 15px; }
+      .step p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+      .faq-list { display: grid; gap: 9px; }
+      details { border: 1px solid var(--line); border-radius: 16px; background: rgba(18, 25, 48, 0.55); }
+      summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; }
+      summary::-webkit-details-marker { display: none; }
+      summary::after { content: "+"; color: #98a5c1; font-size: 19px; font-weight: 400; }
+      details[open] summary::after { content: "−"; }
+      details p { margin: -3px 16px 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+      .footer { padding: 34px 0 0; color: #75839f; font-size: 12px; line-height: 1.7; text-align: center; }
+      .footer strong { color: #abb6cc; }
+
+      .toast { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 16px; z-index: 5; display: flex; justify-content: center; pointer-events: none; }
+      .toast-message { max-width: 520px; padding: 11px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; color: #eef2ff; background: rgba(16, 22, 42, 0.94); box-shadow: 0 16px 40px rgba(0,0,0,0.36); font-size: 13px; line-height: 1.45; opacity: 0; transform: translateY(8px); transition: opacity 180ms ease, transform 180ms ease; }
+      .toast-message.is-visible { opacity: 1; transform: translateY(0); }
+
+      @media (min-width: 640px) {
+        .shell { padding-top: 24px; }
+        .input-card { padding: 22px; }
+        .steps { grid-template-columns: repeat(3, 1fr); }
+        .step { display: block; }
+        .step-number { margin-bottom: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand" aria-label="LocalDrop">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+          </span>
+          <span>LocalDrop</span>
+        </div>
+        <span class="local-badge"><span class="dot"></span>纯本地运行</span>
+      </header>
+
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">Mobile video utility</p>
+        <h1 id="page-title">手机视频下载器</h1>
+        <p class="hero-copy">把视频直链粘贴进来，直接在手机浏览器里预览和保存。无需账号、无需后端、历史记录只保存在这台设备上。</p>
+      </section>
+
+      <section class="card input-card" aria-label="视频链接输入">
+        <label class="field-label" for="source-input">视频链接或分享文本</label>
+        <div class="input-wrap">
+          <textarea id="source-input" placeholder="粘贴 MP4、WebM、图片直链，或 X / Twitter 分享文本" autocomplete="off" spellcheck="false"></textarea>
+          <button class="paste-button" id="paste-button" type="button" aria-label="从剪贴板粘贴" title="从剪贴板粘贴">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="12" height="16" rx="2"/><path d="M16 4V3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2"/></svg>
+          </button>
+        </div>
+        <div class="action-row">
+          <button class="primary-button" id="parse-button" type="button">
+            获取下载链接
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+          </button>
+          <button class="secondary-button" id="clear-button" type="button">清空</button>
+        </div>
+        <p class="support-note">支持直接媒体地址，也支持无需注册的公开 X/Twitter 解析接口。接口由第三方提供，可能有访问限制。</p>
+      </section>
+
+      <section class="card result-card" id="result-card" aria-live="polite" aria-label="下载结果">
+        <div class="result-head">
+          <div>
+            <h2 class="result-title" id="result-title">已识别资源</h2>
+            <p class="result-type" id="result-type"></p>
+          </div>
+          <span class="status-pill" id="status-pill">可下载</span>
+        </div>
+        <div class="preview" id="preview"></div>
+        <div class="result-actions">
+          <a class="primary-button" id="download-button" href="#" download>下载文件</a>
+          <button class="secondary-button" id="open-button" type="button">在新标签打开</button>
+        </div>
+        <div class="quality-list" id="quality-list"></div>
+        <p class="result-help" id="result-help"></p>
+      </section>
+
+      <section class="section" aria-labelledby="resolver-title">
+        <details class="card resolver-settings">
+          <summary id="resolver-title">自定义解析接口（可选）</summary>
+          <div class="resolver-content">
+            <p class="section-lead">如果你以后部署了自己的 Worker，可在这里填入；留空时页面会使用公开解析接口。</p>
+            <label class="field-label" for="resolver-url">自定义接口地址（可选）</label>
+            <input class="resolver-input" id="resolver-url" type="url" placeholder="https://localdrop-resolver.example.workers.dev" autocomplete="url" />
+            <div class="action-row">
+              <button class="primary-button" id="save-resolver-button" type="button">保存到此设备</button>
+              <button class="secondary-button" id="clear-resolver-button" type="button">清除</button>
+            </div>
+            <p class="support-note">接口地址只保存在当前设备的浏览器中。部署步骤见随附 README。</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="section" aria-labelledby="steps-title">
+        <h2 class="section-heading" id="steps-title">如何使用</h2>
+        <p class="section-lead">整个流程在浏览器里完成，适合 iPhone、Android 和桌面浏览器。</p>
+        <div class="steps">
+          <article class="step"><span class="step-number">1</span><div><h3>复制链接</h3><p>从视频页面复制媒体直链或分享文本。</p></div></article>
+          <article class="step"><span class="step-number">2</span><div><h3>粘贴链接</h3><p>点击输入框右上角的剪贴板按钮。</p></div></article>
+          <article class="step"><span class="step-number">3</span><div><h3>保存资源</h3><p>预览后点击下载，iPhone 可长按视频选择存储。</p></div></article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="faq-title">
+        <h2 class="section-heading" id="faq-title">常见问题</h2>
+        <div class="faq-list">
+          <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
+          <details><summary>下载按钮没有反应怎么办？</summary><p>部分站点会禁止跨站读取。此时点击“在新标签打开”，在视频页面长按或使用浏览器的分享菜单保存到设备。</p></details>
+          <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
+          <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
+        </div>
+      </section>
+
+      <footer class="footer"><strong>LocalDrop</strong> · 手机端视频下载工具<br />网页可部署在 GitHub Pages；X 帖子解析默认使用公开接口，也支持改成你自己的 Worker。</footer>
+    </main>
+    <div class="toast" aria-live="polite"><div class="toast-message" id="toast-message"></div></div>
+
+    <script>
+      const input = document.querySelector('#source-input');
+      const parseButton = document.querySelector('#parse-button');
+      const clearButton = document.querySelector('#clear-button');
+      const pasteButton = document.querySelector('#paste-button');
+      const resultCard = document.querySelector('#result-card');
+      const resultTitle = document.querySelector('#result-title');
+      const resultType = document.querySelector('#result-type');
+      const statusPill = document.querySelector('#status-pill');
+      const preview = document.querySelector('#preview');
+      const downloadButton = document.querySelector('#download-button');
+      const openButton = document.querySelector('#open-button');
+      const qualityList = document.querySelector('#quality-list');
+      const resolverInput = document.querySelector('#resolver-url');
+      const saveResolverButton = document.querySelector('#save-resolver-button');
+      const clearResolverButton = document.querySelector('#clear-resolver-button');
+      const resultHelp = document.querySelector('#result-help');
+      const toastMessage = document.querySelector('#toast-message');
+      const historyKey = 'localdrop-history-v1';
+      const resolverKey = 'localdrop-resolver-url-v1';
+      let activeUrl = '';
+      let activeObjectUrl = '';
+      let toastTimer;
+
+      const mediaPatterns = {
+        video: /\.(mp4|webm|mov|m4v|ogv)(?:$|[?#])/i,
+        image: /\.(jpg|jpeg|png|gif|webp|avif)(?:$|[?#])/i,
+      };
+
+      function showToast(message) {
+        toastMessage.textContent = message;
+        toastMessage.classList.add('is-visible');
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => toastMessage.classList.remove('is-visible'), 3000);
+      }
+
+      function extractUrl(value) {
+        const match = value.trim().match(/https?:\/\/[^\s<>]+/i);
+        return match ? match[0].replace(/[),.;]+$/, '') : '';
+      }
+
+      function isTwitterPage(url) {
+        try {
+          const host = new URL(url).hostname.toLowerCase();
+          return /(^|\.)((twitter|x)\.com)$/.test(host) && /\/status\/\d+/.test(new URL(url).pathname);
+        } catch { return false; }
+      }
+
+      function getMediaType(url) {
+        if (mediaPatterns.video.test(url)) return 'video';
+        if (mediaPatterns.image.test(url)) return 'image';
+        return '';
+      }
+
+      function saveHistory(url, type) {
+        const current = JSON.parse(localStorage.getItem(historyKey) || '[]');
+        const next = [{ url, type, createdAt: Date.now() }, ...current.filter((item) => item.url !== url)].slice(0, 8);
+        localStorage.setItem(historyKey, JSON.stringify(next));
+      }
+
+      function clearPreview() {
+        if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+        activeObjectUrl = '';
+        preview.replaceChildren();
+        qualityList.replaceChildren();
+      }
+
+      function showUnsupported(url, title, messageText) {
+        resultCard.classList.add('is-visible');
+        resultTitle.textContent = title;
+        resultType.textContent = url;
+        statusPill.textContent = title === '暂不支持这个地址' ? '不支持' : '解析失败';
+        statusPill.classList.add('warn');
+        clearPreview();
+        const message = document.createElement('div');
+        message.className = 'preview-empty';
+        message.textContent = messageText;
+        preview.append(message);
+        downloadButton.removeAttribute('href');
+        downloadButton.setAttribute('aria-disabled', 'true');
+        downloadButton.style.opacity = '0.46';
+        downloadButton.hidden = true;
+        resultHelp.textContent = '当前使用公开第三方解析接口；如果服务暂时不可用，可以稍后重试或填写自己的解析接口。';
+        openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
+      }
+
+      function showMedia(url, type) {
+        resultCard.classList.add('is-visible');
+        resultTitle.textContent = '已识别资源';
+        resultType.textContent = type === 'video' ? '视频文件' : '图片文件';
+        statusPill.textContent = '可下载';
+        statusPill.classList.remove('warn');
+        clearPreview();
+        const element = document.createElement(type === 'video' ? 'video' : 'img');
+        element.controls = type === 'video';
+        element.playsInline = true;
+        element.src = url;
+        if (type === 'image') element.alt = '待下载图片预览';
+        preview.append(element);
+        downloadButton.href = url;
+        downloadButton.download = `localdrop-${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`;
+        downloadButton.removeAttribute('aria-disabled');
+        downloadButton.style.opacity = '1';
+        downloadButton.hidden = false;
+        qualityList.replaceChildren();
+        resultHelp.textContent = '如果下载后只打开了播放页，请长按视频或使用浏览器分享菜单选择“存储到文件”。';
+        openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
+        saveHistory(url, type);
+      }
+
+      function getWorkerEndpoint() {
+        const value = resolverInput.value.trim();
+        if (!value) return '';
+        try {
+          const endpoint = new URL(value);
+          if (endpoint.protocol !== 'https:') return '';
+          return endpoint.href.replace(/\/$/, '');
+        } catch {
+          return '';
+        }
+      }
+
+      function getTweetId(url) {
+        try {
+          const parsed = new URL(url);
+          if (!/(^|\.)((twitter|x)\.com)$/.test(parsed.hostname.toLowerCase())) return '';
+          return parsed.pathname.match(/\/status\/(\d+)/)?.[1] || '';
+        } catch {
+          return '';
+        }
+      }
+
+      function normalizePublicResponse(data) {
+        const media = data?.media_extended || data?.status?.media?.all || data?.status?.media?.videos || [];
+        const mediaUrls = data?.mediaURLs || [];
+        if (!media.length && mediaUrls.length) {
+          return mediaUrls.map((url) => ({
+            type: 'video',
+            url,
+            previewImageUrl: '',
+            variants: [{ url, contentType: 'video/mp4', bitRate: 0 }],
+          }));
+        }
+        return media.map((item) => ({
+          type: item.type,
+          url: item.url || '',
+          previewImageUrl: item.thumbnail_url || '',
+          variants: (item.variants || item.video_info?.variants || item.formats || (item.type === 'video' && item.url ? [{ url: item.url, content_type: 'video/mp4' }] : []))
+            .filter((format) => (format.content_type === 'video/mp4' || format.container === 'mp4') && format.url)
+            .map((format) => ({
+              url: format.url,
+              contentType: 'video/mp4',
+              bitRate: format.bitrate || format.bit_rate || 0,
+              width: format.width || item.width || 0,
+              height: format.height || item.height || 0,
+            })),
+        }));
+      }
+
+      function showResolvedMedia(media, tweetUrl) {
+        const firstVideo = media.find((item) => item.variants?.length);
+        if (!firstVideo) {
+          showUnsupported(tweetUrl, '帖子中没有可下载视频', '接口没有返回 MP4 视频变体。帖子可能没有视频、视频不可公开访问，或公开解析接口暂时没有媒体数据。');
+          return;
+        }
+        const variants = firstVideo.variants
+          .filter((variant) => variant.contentType === 'video/mp4' && variant.url)
+          .sort((first, second) => (second.bitRate || 0) - (first.bitRate || 0));
+        if (!variants.length) {
+          showUnsupported(tweetUrl, '没有可用的 MP4 版本', '解析接口没有返回可直接播放的 MP4 变体。');
+          return;
+        }
+        const bestVariant = variants[0];
+        resultCard.classList.add('is-visible');
+        resultTitle.textContent = '已解析 X 视频';
+        resultType.textContent = `${media.length} 个媒体 · ${variants.length} 种画质`;
+        statusPill.textContent = '解析完成';
+        statusPill.classList.remove('warn');
+        clearPreview();
+        const video = document.createElement('video');
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.src = bestVariant.url;
+        preview.append(video);
+        downloadButton.href = bestVariant.url;
+        downloadButton.download = `localdrop-x-${Date.now()}.mp4`;
+        downloadButton.hidden = false;
+        downloadButton.removeAttribute('aria-disabled');
+        downloadButton.style.opacity = '1';
+        openButton.onclick = () => window.open(bestVariant.url, '_blank', 'noopener,noreferrer');
+        variants.forEach((variant) => {
+          const link = document.createElement('a');
+          link.className = 'quality-link';
+          link.href = variant.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          const label = variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质';
+          const quality = document.createElement('span');
+          const action = document.createElement('span');
+          quality.textContent = label;
+          action.textContent = '打开 / 保存 ↗';
+          link.append(quality, action);
+          qualityList.append(link);
+        });
+        resultHelp.textContent = '媒体链接由解析接口返回，浏览器直接打开 video.twimg.com。iPhone 可长按视频或通过分享菜单存储到文件。';
+        saveHistory(tweetUrl, 'twitter-video');
+      }
+
+      async function fetchJson(url) {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) throw new Error(`解析服务返回 ${response.status}`);
+        if (!contentType.includes('json')) throw new Error('解析服务返回了网页而不是 JSON');
+        return response.json();
+      }
+
+      async function fetchPublicMedia(tweetId) {
+        const providers = [
+          `https://api.vxtwitter.com/X/status/${tweetId}`,
+          `https://api.fxtwitter.com/2/status/${tweetId}`,
+        ];
+        const errors = [];
+        for (const provider of providers) {
+          try {
+            const data = await fetchJson(provider);
+            const media = normalizePublicResponse(data);
+            if (media.length) return media;
+            errors.push('接口未返回视频');
+          } catch (error) {
+            errors.push(error instanceof Error ? error.message : '请求失败');
+          }
+        }
+        throw new Error(`公开解析服务暂时不可用：${errors.join('；')}`);
+      }
+
+      async function resolveTwitterVideo(url) {
+        const endpoint = getWorkerEndpoint();
+        const tweetId = getTweetId(url);
+        if (!tweetId) {
+          showUnsupported(url, '链接格式不正确', '请粘贴完整的 x.com 或 twitter.com status 链接。');
+          return;
+        }
+        resultCard.classList.add('is-visible');
+        resultTitle.textContent = '正在解析帖子';
+        resultType.textContent = endpoint ? '请求发送到你的自定义接口' : '请求公开解析接口';
+        statusPill.textContent = '解析中';
+        statusPill.classList.remove('warn');
+        clearPreview();
+        const loading = document.createElement('div');
+        loading.className = 'preview-empty';
+        loading.textContent = endpoint ? '正在向你的接口请求媒体信息…' : '正在请求公开解析接口…';
+        preview.append(loading);
+        parseButton.disabled = true;
+        try {
+          let media;
+          if (endpoint) {
+            const response = await fetch(`${endpoint}/api/resolve`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `解析请求失败（${response.status}）`);
+            media = data.media;
+          } else {
+            media = await fetchPublicMedia(tweetId);
+          }
+          if (!Array.isArray(media)) throw new Error('解析接口返回格式不正确');
+          showResolvedMedia(media, url);
+        } catch (error) {
+          showUnsupported(url, '解析失败', error instanceof Error ? error.message : '公开解析接口暂时不可用，请稍后重试。');
+        } finally {
+          parseButton.disabled = false;
+        }
+      }
+
+      async function parseInput() {
+        const url = extractUrl(input.value);
+        if (!url) {
+          resultCard.classList.remove('is-visible');
+          showToast('请先粘贴一个可访问的链接');
+          input.focus();
+          return;
+        }
+        activeUrl = url;
+        const type = getMediaType(url);
+        if (isTwitterPage(url)) {
+          await resolveTwitterVideo(url);
+          return;
+        }
+        if (!type) {
+          showUnsupported(url, '暂不支持这个地址', '请粘贴以 MP4、WebM、MOV、JPG、PNG 或 GIF 结尾的媒体直链。');
+          return;
+        }
+        showMedia(url, type);
+      }
+
+      pasteButton.addEventListener('click', async () => {
+        try {
+          input.value = await navigator.clipboard.readText();
+          showToast('已从剪贴板粘贴');
+        } catch {
+          showToast('浏览器未授予剪贴板权限，请手动粘贴');
+          input.focus();
+        }
+      });
+
+      parseButton.addEventListener('click', parseInput);
+      saveResolverButton.addEventListener('click', () => {
+        const endpoint = getWorkerEndpoint();
+        if (!endpoint) {
+          showToast('请输入有效的 HTTPS 自定义接口地址（可选）');
+          return;
+        }
+        localStorage.setItem(resolverKey, endpoint);
+        resolverInput.value = endpoint;
+        showToast('解析接口已保存在此设备');
+      });
+      clearResolverButton.addEventListener('click', () => {
+        localStorage.removeItem(resolverKey);
+        resolverInput.value = '';
+        showToast('已清除解析接口');
+      });
+      input.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') parseInput();
+      });
+      clearButton.addEventListener('click', () => {
+        input.value = '';
+        activeUrl = '';
+        resultCard.classList.remove('is-visible');
+        clearPreview();
+        showToast('已清空');
+      });
+      downloadButton.addEventListener('click', () => {
+        if (!activeUrl) return;
+        saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
+      });
+
+      resolverInput.value = localStorage.getItem(resolverKey) || '';
+
+      if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+      }
+    </script>
+  </body>
+</html>
+
