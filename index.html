@@ -205,9 +205,9 @@
       .result-actions a, .result-actions button { flex: 1; text-decoration: none; }
       .result-actions button { min-width: 0; }
       .result-help { margin: 13px 1px 0; color: #93a0ba; font-size: 12px; line-height: 1.65; }
-      .quality-list { display: grid; gap: 8px; margin-top: 14px; }
-      .quality-link { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 13px; color: #eef2ff; background: rgba(148, 163, 184, 0.07); text-decoration: none; font-size: 13px; font-weight: 700; }
-      .quality-link span:last-child { color: var(--cyan); }
+      .quality-select-wrap { margin-top: 14px; }
+      .quality-select-wrap span { display: block; margin-bottom: 8px; color: #d6dded; font-size: 13px; font-weight: 700; }
+      .quality-select { width: 100%; min-height: 46px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 13px; color: var(--text); background: var(--panel-strong); }
       .resolver-settings { padding: 0 16px; }
       .resolver-content { padding: 0 0 16px; }
       .resolver-input { width: 100%; min-height: 46px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 13px; outline: none; color: var(--text); background: rgba(7, 11, 25, 0.56); }
@@ -292,12 +292,13 @@
           <span class="status-pill" id="status-pill">可下载</span>
         </div>
         <div class="preview" id="preview"></div>
+        <label class="quality-select-wrap" id="quality-wrap" hidden>
+          <span>选择画质</span>
+          <select class="quality-select" id="quality-list" aria-label="选择视频画质"></select>
+        </label>
         <div class="result-actions">
-          <a class="primary-button" id="download-button" href="#" target="_blank" rel="noopener">打开视频并保存</a>
-          <button class="secondary-button" id="open-button" type="button">在新标签打开</button>
-          <button class="secondary-button" id="copy-button" type="button" hidden>复制视频地址</button>
+          <a class="primary-button" id="download-button" href="#" download>下载</a>
         </div>
-        <div class="quality-list" id="quality-list"></div>
         <p class="result-help" id="result-help"></p>
       </section>
 
@@ -331,7 +332,7 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>iPhone 点击下载没有反应怎么办？</summary><p>Safari 通常不会执行跨域视频链接的 download 属性。点击“打开视频并保存”，进入视频页面后点击分享按钮，选择“存储到文件”；也可以点击“复制视频地址”后在 Safari 新标签打开。</p></details>
+          <details><summary>iPhone 点击下载没有反应怎么办？</summary><p>Safari 对跨站视频的下载行为有系统限制。如果 Safari 忽略下载请求并播放视频，网页无法强制将文件写入下载列表；可以在 Safari 播放页使用分享菜单保存到“文件”。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -352,9 +353,8 @@
       const statusPill = document.querySelector('#status-pill');
       const preview = document.querySelector('#preview');
       const downloadButton = document.querySelector('#download-button');
-      const openButton = document.querySelector('#open-button');
-      const copyButton = document.querySelector('#copy-button');
       const qualityList = document.querySelector('#quality-list');
+      const qualityWrap = document.querySelector('#quality-wrap');
       const resolverInput = document.querySelector('#resolver-url');
       const saveResolverButton = document.querySelector('#save-resolver-button');
       const clearResolverButton = document.querySelector('#clear-resolver-button');
@@ -363,7 +363,6 @@
       const historyKey = 'localdrop-history-v1';
       const resolverKey = 'localdrop-resolver-url-v1';
       let activeUrl = '';
-      let activeMediaUrl = '';
       let activeObjectUrl = '';
       let toastTimer;
 
@@ -425,11 +424,8 @@
         downloadButton.setAttribute('aria-disabled', 'true');
         downloadButton.style.opacity = '0.46';
         downloadButton.hidden = true;
-        copyButton.hidden = true;
-        openButton.hidden = false;
-        openButton.textContent = '在新标签打开';
+        qualityWrap.hidden = true;
         resultHelp.textContent = '当前使用公开第三方解析接口；如果服务暂时不可用，可以稍后重试或填写自己的解析接口。';
-        openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
       }
 
       function showMedia(url, type) {
@@ -446,20 +442,14 @@
         if (type === 'image') element.alt = '待下载图片预览';
         preview.append(element);
         downloadButton.href = url;
-        downloadButton.removeAttribute('download');
-        downloadButton.target = '_blank';
-        downloadButton.rel = 'noopener';
-        downloadButton.textContent = type === 'video' ? '打开视频并保存' : '打开图片并保存';
+        downloadButton.download = `localdrop-${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`;
+        downloadButton.textContent = '下载';
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
         downloadButton.hidden = false;
-        activeMediaUrl = url;
-        copyButton.hidden = false;
         qualityList.replaceChildren();
-        openButton.hidden = true;
-        resultHelp.textContent = '如果下载后只打开了播放页，请长按视频或使用浏览器分享菜单选择“存储到文件”。';
-        openButton.textContent = '打开视频并保存';
-        openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
+        qualityWrap.hidden = true;
+        resultHelp.textContent = '点击“下载”请求浏览器保存文件。若 iPhone Safari 改为播放视频，这是 Safari 对跨站媒体下载的限制。';
         saveHistory(url, type);
       }
 
@@ -539,31 +529,25 @@
         video.src = bestVariant.url;
         preview.append(video);
         downloadButton.href = bestVariant.url;
-        downloadButton.removeAttribute('download');
-        downloadButton.target = '_blank';
-        downloadButton.rel = 'noopener';
-        downloadButton.textContent = '打开视频并保存';
+        downloadButton.download = `localdrop-x-${Date.now()}.mp4`;
+        downloadButton.textContent = '下载';
         downloadButton.hidden = false;
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
-        activeMediaUrl = bestVariant.url;
-        copyButton.hidden = false;
-        openButton.hidden = true;
-        variants.forEach((variant) => {
-          const link = document.createElement('a');
-          link.className = 'quality-link';
-          link.href = variant.url;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
+        qualityList.replaceChildren();
+        qualityWrap.hidden = variants.length < 2;
+        variants.forEach((variant, index) => {
+          const option = document.createElement('option');
+          option.value = String(index);
           const label = variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质';
-          const quality = document.createElement('span');
-          const action = document.createElement('span');
-          quality.textContent = label;
-          action.textContent = '打开 / 保存 ↗';
-          link.append(quality, action);
-          qualityList.append(link);
+          option.textContent = label;
+          qualityList.append(option);
         });
-        resultHelp.textContent = '媒体链接由解析接口返回，浏览器直接打开 video.twimg.com。iPhone 可长按视频或通过分享菜单存储到文件。';
+        qualityList.onchange = () => {
+          const selectedVariant = variants[Number(qualityList.value)];
+          if (selectedVariant) downloadButton.href = selectedVariant.url;
+        };
+        resultHelp.textContent = '点击“下载”请求浏览器保存所选版本。iPhone Safari 可能忽略跨站媒体的下载属性；若转为播放，请从 Safari 分享菜单保存到“文件”。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -695,15 +679,6 @@
       downloadButton.addEventListener('click', () => {
         if (!activeUrl) return;
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
-      });
-      copyButton.addEventListener('click', async () => {
-        if (!activeMediaUrl) return;
-        try {
-          await navigator.clipboard.writeText(activeMediaUrl);
-          showToast('视频地址已复制，请在 Safari 新标签打开后保存');
-        } catch {
-          showToast('复制失败，请点击“打开视频并保存”');
-        }
       });
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
