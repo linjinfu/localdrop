@@ -203,6 +203,7 @@
       .preview-empty { padding: 32px 20px; color: #8a98b3; font-size: 13px; line-height: 1.65; text-align: center; }
       .result-actions { display: flex; gap: 10px; margin-top: 14px; }
       .result-actions a, .result-actions button { flex: 1; text-decoration: none; }
+      .result-actions button { min-width: 0; }
       .result-help { margin: 13px 1px 0; color: #93a0ba; font-size: 12px; line-height: 1.65; }
       .quality-list { display: grid; gap: 8px; margin-top: 14px; }
       .quality-link { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 13px; color: #eef2ff; background: rgba(148, 163, 184, 0.07); text-decoration: none; font-size: 13px; font-weight: 700; }
@@ -292,8 +293,9 @@
         </div>
         <div class="preview" id="preview"></div>
         <div class="result-actions">
-          <a class="primary-button" id="download-button" href="#" download>下载文件</a>
+          <a class="primary-button" id="download-button" href="#" target="_blank" rel="noopener">打开视频并保存</a>
           <button class="secondary-button" id="open-button" type="button">在新标签打开</button>
+          <button class="secondary-button" id="copy-button" type="button" hidden>复制视频地址</button>
         </div>
         <div class="quality-list" id="quality-list"></div>
         <p class="result-help" id="result-help"></p>
@@ -329,7 +331,7 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>下载按钮没有反应怎么办？</summary><p>部分站点会禁止跨站读取。此时点击“在新标签打开”，在视频页面长按或使用浏览器的分享菜单保存到设备。</p></details>
+          <details><summary>iPhone 点击下载没有反应怎么办？</summary><p>Safari 通常不会执行跨域视频链接的 download 属性。点击“打开视频并保存”，进入视频页面后点击分享按钮，选择“存储到文件”；也可以点击“复制视频地址”后在 Safari 新标签打开。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -351,6 +353,7 @@
       const preview = document.querySelector('#preview');
       const downloadButton = document.querySelector('#download-button');
       const openButton = document.querySelector('#open-button');
+      const copyButton = document.querySelector('#copy-button');
       const qualityList = document.querySelector('#quality-list');
       const resolverInput = document.querySelector('#resolver-url');
       const saveResolverButton = document.querySelector('#save-resolver-button');
@@ -360,6 +363,7 @@
       const historyKey = 'localdrop-history-v1';
       const resolverKey = 'localdrop-resolver-url-v1';
       let activeUrl = '';
+      let activeMediaUrl = '';
       let activeObjectUrl = '';
       let toastTimer;
 
@@ -421,6 +425,9 @@
         downloadButton.setAttribute('aria-disabled', 'true');
         downloadButton.style.opacity = '0.46';
         downloadButton.hidden = true;
+        copyButton.hidden = true;
+        openButton.hidden = false;
+        openButton.textContent = '在新标签打开';
         resultHelp.textContent = '当前使用公开第三方解析接口；如果服务暂时不可用，可以稍后重试或填写自己的解析接口。';
         openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
       }
@@ -439,12 +446,19 @@
         if (type === 'image') element.alt = '待下载图片预览';
         preview.append(element);
         downloadButton.href = url;
-        downloadButton.download = `localdrop-${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`;
+        downloadButton.removeAttribute('download');
+        downloadButton.target = '_blank';
+        downloadButton.rel = 'noopener';
+        downloadButton.textContent = type === 'video' ? '打开视频并保存' : '打开图片并保存';
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
         downloadButton.hidden = false;
+        activeMediaUrl = url;
+        copyButton.hidden = false;
         qualityList.replaceChildren();
+        openButton.hidden = true;
         resultHelp.textContent = '如果下载后只打开了播放页，请长按视频或使用浏览器分享菜单选择“存储到文件”。';
+        openButton.textContent = '打开视频并保存';
         openButton.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
         saveHistory(url, type);
       }
@@ -525,11 +539,16 @@
         video.src = bestVariant.url;
         preview.append(video);
         downloadButton.href = bestVariant.url;
-        downloadButton.download = `localdrop-x-${Date.now()}.mp4`;
+        downloadButton.removeAttribute('download');
+        downloadButton.target = '_blank';
+        downloadButton.rel = 'noopener';
+        downloadButton.textContent = '打开视频并保存';
         downloadButton.hidden = false;
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
-        openButton.onclick = () => window.open(bestVariant.url, '_blank', 'noopener,noreferrer');
+        activeMediaUrl = bestVariant.url;
+        copyButton.hidden = false;
+        openButton.hidden = true;
         variants.forEach((variant) => {
           const link = document.createElement('a');
           link.className = 'quality-link';
@@ -676,6 +695,15 @@
       downloadButton.addEventListener('click', () => {
         if (!activeUrl) return;
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
+      });
+      copyButton.addEventListener('click', async () => {
+        if (!activeMediaUrl) return;
+        try {
+          await navigator.clipboard.writeText(activeMediaUrl);
+          showToast('视频地址已复制，请在 Safari 新标签打开后保存');
+        } catch {
+          showToast('复制失败，请点击“打开视频并保存”');
+        }
       });
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
