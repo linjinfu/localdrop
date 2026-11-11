@@ -293,8 +293,8 @@
         </div>
         <div class="preview" id="preview"></div>
         <label class="quality-select-wrap" id="quality-wrap" hidden>
-          <span>选择画质</span>
-          <select class="quality-select" id="quality-list" aria-label="选择视频画质"></select>
+          <span>选择视频和画质</span>
+          <select class="quality-select" id="quality-list" aria-label="选择视频和画质"></select>
         </label>
         <div class="result-actions">
           <a class="primary-button" id="download-button" href="#" download>下载</a>
@@ -363,6 +363,7 @@
       const historyKey = 'localdrop-history-v1';
       const resolverKey = 'localdrop-resolver-url-v1';
       let activeUrl = '';
+      let activeMediaUrl = '';
       let activeObjectUrl = '';
       let toastTimer;
 
@@ -407,6 +408,7 @@
         activeObjectUrl = '';
         preview.replaceChildren();
         qualityList.replaceChildren();
+        qualityWrap.hidden = true;
       }
 
       function showUnsupported(url, title, messageText) {
@@ -447,6 +449,7 @@
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
         downloadButton.hidden = false;
+        activeMediaUrl = url;
         qualityList.replaceChildren();
         qualityWrap.hidden = true;
         resultHelp.textContent = '点击“下载”请求浏览器保存文件。若 iPhone Safari 改为播放视频，这是 Safari 对跨站媒体下载的限制。';
@@ -503,22 +506,23 @@
       }
 
       function showResolvedMedia(media, tweetUrl) {
-        const firstVideo = media.find((item) => item.variants?.length);
-        if (!firstVideo) {
+        const videoItems = media.filter((item) => item.variants?.length && (item.type === 'video' || item.type === 'gif' || !item.type));
+        const options = videoItems.flatMap((item, videoIndex) => item.variants
+          .filter((variant) => variant.contentType === 'video/mp4' && variant.url)
+          .sort((first, second) => (second.bitRate || 0) - (first.bitRate || 0))
+          .map((variant, variantIndex) => ({
+            videoIndex,
+            variantIndex,
+            variant,
+            label: `视频 ${videoIndex + 1} · ${variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质'}`,
+          })));
+        if (!options.length) {
           showUnsupported(tweetUrl, '帖子中没有可下载视频', '接口没有返回 MP4 视频变体。帖子可能没有视频、视频不可公开访问，或公开解析接口暂时没有媒体数据。');
           return;
         }
-        const variants = firstVideo.variants
-          .filter((variant) => variant.contentType === 'video/mp4' && variant.url)
-          .sort((first, second) => (second.bitRate || 0) - (first.bitRate || 0));
-        if (!variants.length) {
-          showUnsupported(tweetUrl, '没有可用的 MP4 版本', '解析接口没有返回可直接播放的 MP4 变体。');
-          return;
-        }
-        const bestVariant = variants[0];
         resultCard.classList.add('is-visible');
         resultTitle.textContent = '已解析 X 视频';
-        resultType.textContent = `${media.length} 个媒体 · ${variants.length} 种画质`;
+        resultType.textContent = `${videoItems.length} 个视频 · ${options.length} 个可下载版本`;
         statusPill.textContent = '解析完成';
         statusPill.classList.remove('warn');
         clearPreview();
@@ -526,28 +530,32 @@
         video.controls = true;
         video.playsInline = true;
         video.preload = 'metadata';
-        video.src = bestVariant.url;
         preview.append(video);
-        downloadButton.href = bestVariant.url;
-        downloadButton.download = `localdrop-x-${Date.now()}.mp4`;
+        const applyOption = (index) => {
+          const option = options[index];
+          if (!option) return;
+          activeMediaUrl = option.variant.url;
+          video.src = option.variant.url;
+          downloadButton.href = option.variant.url;
+          downloadButton.download = `localdrop-x-video-${option.videoIndex + 1}.mp4`;
+          qualityList.value = String(index);
+        };
+        applyOption(0);
         downloadButton.textContent = '下载';
         downloadButton.hidden = false;
         downloadButton.removeAttribute('aria-disabled');
         downloadButton.style.opacity = '1';
         qualityList.replaceChildren();
-        qualityWrap.hidden = variants.length < 2;
-        variants.forEach((variant, index) => {
-          const option = document.createElement('option');
-          option.value = String(index);
-          const label = variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质';
-          option.textContent = label;
-          qualityList.append(option);
+        qualityWrap.hidden = options.length < 2;
+        options.forEach((option, index) => {
+          const selectOption = document.createElement('option');
+          selectOption.value = String(index);
+          selectOption.textContent = option.label;
+          qualityList.append(selectOption);
         });
-        qualityList.onchange = () => {
-          const selectedVariant = variants[Number(qualityList.value)];
-          if (selectedVariant) downloadButton.href = selectedVariant.url;
-        };
-        resultHelp.textContent = '点击“下载”请求浏览器保存所选版本。iPhone Safari 可能忽略跨站媒体的下载属性；若转为播放，请从 Safari 分享菜单保存到“文件”。';
+        qualityList.value = '0';
+        qualityList.onchange = () => applyOption(Number(qualityList.value));
+        resultHelp.textContent = 'iPhone 点击“下载”会尝试把视频文件送入系统分享面板；若视频源禁止跨域读取，Safari 无法在网页内分享该文件。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -676,10 +684,50 @@
         clearPreview();
         showToast('已清空');
       });
-      downloadButton.addEventListener('click', () => {
+      downloadButton.addEventListener('click', (event) => {
         if (!activeUrl) return;
+        if (isIosDevice() && activeMediaUrl) {
+          event.preventDefault();
+          shareFromPage();
+          return;
+        }
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
       });
+
+      function isIosDevice() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
+
+      async function shareFromPage() {
+        if (!navigator.share) {
+          showToast('当前浏览器不支持系统分享，请使用 Safari 打开此页面');
+          return;
+        }
+        try {
+          const response = await fetch(activeMediaUrl, { mode: 'cors' });
+          if (!response.ok) throw new Error(`视频源返回 ${response.status}`);
+          const contentLength = Number(response.headers.get('content-length') || 0);
+          if (contentLength > 200 * 1024 * 1024) {
+            showToast('视频超过 200 MB，避免占满 iPhone 内存，请使用 Safari 播放页保存');
+            return;
+          }
+          const blob = await response.blob();
+          const file = new File([blob], `localdrop-${Date.now()}.mp4`, { type: blob.type || 'video/mp4' });
+          if (!navigator.canShare?.({ files: [file] })) {
+            showToast('此 Safari 版本不支持分享视频文件');
+            return;
+          }
+          await navigator.share({ files: [file], title: 'LocalDrop 视频' });
+          saveHistory(activeUrl, 'twitter-video');
+        } catch (error) {
+          if (error?.name === 'AbortError') return;
+          if (error instanceof TypeError) {
+            showToast('视频源禁止网页跨域读取，无法直接分享文件；请用 Safari 播放页的分享功能保存');
+            return;
+          }
+          showToast(error instanceof Error ? error.message : '无法分享视频文件，请稍后重试');
+        }
+      }
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
 
