@@ -199,8 +199,18 @@
         border-radius: 17px;
         background: #070a13;
       }
+      .preview[hidden], .media-list[hidden], .quality-select-wrap[hidden] { display: none; }
       .preview video, .preview img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
       .preview-empty { padding: 32px 20px; color: #8a98b3; font-size: 13px; line-height: 1.65; text-align: center; }
+      .media-list { display: grid; gap: 14px; margin-top: 14px; }
+      .media-item { padding: 14px; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 17px; background: rgba(7, 10, 19, 0.62); }
+      .media-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+      .media-item-title { margin: 0; color: #eef2ff; font-size: 15px; }
+      .media-item-meta { color: #8a98b3; font-size: 12px; }
+      .media-item video { display: block; width: 100%; max-height: 320px; border-radius: 12px; background: #070a13; object-fit: contain; }
+      .media-item .quality-select-wrap { margin-top: 12px; }
+      .media-item .result-actions { margin-top: 12px; }
+      .media-item .primary-button { width: 100%; flex: none; }
       .result-actions { display: flex; gap: 10px; margin-top: 14px; }
       .result-actions a, .result-actions button { flex: 1; text-decoration: none; }
       .result-actions button { min-width: 0; }
@@ -292,6 +302,7 @@
           <span class="status-pill" id="status-pill">可下载</span>
         </div>
         <div class="preview" id="preview"></div>
+        <div class="media-list" id="media-list" hidden></div>
         <label class="quality-select-wrap" id="quality-wrap" hidden>
           <span>选择视频和画质</span>
           <select class="quality-select" id="quality-list" aria-label="选择视频和画质"></select>
@@ -352,6 +363,7 @@
       const resultType = document.querySelector('#result-type');
       const statusPill = document.querySelector('#status-pill');
       const preview = document.querySelector('#preview');
+      const mediaList = document.querySelector('#media-list');
       const downloadButton = document.querySelector('#download-button');
       const qualityList = document.querySelector('#quality-list');
       const qualityWrap = document.querySelector('#quality-wrap');
@@ -406,9 +418,16 @@
       function clearPreview() {
         if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
         activeObjectUrl = '';
+        activeMediaUrl = '';
         preview.replaceChildren();
+        preview.hidden = false;
+        mediaList.replaceChildren();
+        mediaList.hidden = true;
         qualityList.replaceChildren();
+        qualityList.onchange = null;
         qualityWrap.hidden = true;
+        downloadButton.hidden = true;
+        downloadButton.removeAttribute('href');
       }
 
       function showUnsupported(url, title, messageText) {
@@ -506,56 +525,101 @@
       }
 
       function showResolvedMedia(media, tweetUrl) {
-        const videoItems = media.filter((item) => item.variants?.length && (item.type === 'video' || item.type === 'gif' || !item.type));
-        const options = videoItems.flatMap((item, videoIndex) => item.variants
-          .filter((variant) => variant.contentType === 'video/mp4' && variant.url)
-          .sort((first, second) => (second.bitRate || 0) - (first.bitRate || 0))
-          .map((variant, variantIndex) => ({
-            videoIndex,
-            variantIndex,
-            variant,
-            label: `视频 ${videoIndex + 1} · ${variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质'}`,
-          })));
-        if (!options.length) {
+        const videoItems = media
+          .filter((item) => item.variants?.length && (item.type === 'video' || item.type === 'gif' || !item.type))
+          .map((item) => ({
+            ...item,
+            variants: [...item.variants]
+              .filter((variant) => variant.contentType === 'video/mp4' && variant.url)
+              .sort((first, second) => (second.bitRate || 0) - (first.bitRate || 0)),
+          }))
+          .filter((item) => item.variants.length);
+        if (!videoItems.length) {
           showUnsupported(tweetUrl, '帖子中没有可下载视频', '接口没有返回 MP4 视频变体。帖子可能没有视频、视频不可公开访问，或公开解析接口暂时没有媒体数据。');
           return;
         }
         resultCard.classList.add('is-visible');
         resultTitle.textContent = '已解析 X 视频';
-        resultType.textContent = `${videoItems.length} 个视频 · ${options.length} 个可下载版本`;
+        resultType.textContent = `${videoItems.length} 个视频，请分别选择画质和下载`;
         statusPill.textContent = '解析完成';
         statusPill.classList.remove('warn');
         clearPreview();
-        const video = document.createElement('video');
-        video.controls = true;
-        video.playsInline = true;
-        video.preload = 'metadata';
-        preview.append(video);
-        const applyOption = (index) => {
-          const option = options[index];
-          if (!option) return;
-          activeMediaUrl = option.variant.url;
-          video.src = option.variant.url;
-          downloadButton.href = option.variant.url;
-          downloadButton.download = `localdrop-x-video-${option.videoIndex + 1}.mp4`;
-          qualityList.value = String(index);
-        };
-        applyOption(0);
-        downloadButton.textContent = '下载';
-        downloadButton.hidden = false;
-        downloadButton.removeAttribute('aria-disabled');
-        downloadButton.style.opacity = '1';
-        qualityList.replaceChildren();
-        qualityWrap.hidden = options.length < 2;
-        options.forEach((option, index) => {
-          const selectOption = document.createElement('option');
-          selectOption.value = String(index);
-          selectOption.textContent = option.label;
-          qualityList.append(selectOption);
+        preview.hidden = true;
+        mediaList.hidden = false;
+        downloadButton.hidden = true;
+        qualityWrap.hidden = true;
+
+        videoItems.forEach((item, videoIndex) => {
+          const variants = item.variants;
+          const fileName = `localdrop-x-video-${videoIndex + 1}.mp4`;
+          const mediaItem = document.createElement('article');
+          mediaItem.className = 'media-item';
+
+          const header = document.createElement('div');
+          header.className = 'media-item-head';
+          const title = document.createElement('h3');
+          title.className = 'media-item-title';
+          title.textContent = `视频 ${videoIndex + 1}`;
+          const meta = document.createElement('span');
+          meta.className = 'media-item-meta';
+          meta.textContent = `${variants.length} 个画质版本`;
+          header.append(title, meta);
+
+          const video = document.createElement('video');
+          video.controls = true;
+          video.playsInline = true;
+          video.preload = 'metadata';
+          if (item.previewImageUrl) video.poster = item.previewImageUrl;
+
+          const qualityLabel = document.createElement('label');
+          qualityLabel.className = 'quality-select-wrap';
+          const qualityText = document.createElement('span');
+          qualityText.textContent = '选择画质';
+          const qualitySelect = document.createElement('select');
+          qualitySelect.className = 'quality-select';
+          qualitySelect.setAttribute('aria-label', `视频 ${videoIndex + 1} 画质`);
+          variants.forEach((variant, variantIndex) => {
+            const option = document.createElement('option');
+            option.value = String(variantIndex);
+            const bitrate = variant.bitRate ? `${Math.round(variant.bitRate / 1000)} kbps` : '标准画质';
+            const dimensions = variant.width && variant.height ? ` · ${variant.width}×${variant.height}` : '';
+            option.textContent = `${bitrate}${dimensions}`;
+            qualitySelect.append(option);
+          });
+          qualityLabel.append(qualityText, qualitySelect);
+
+          const actions = document.createElement('div');
+          actions.className = 'result-actions';
+          const itemDownload = document.createElement('a');
+          itemDownload.className = 'primary-button';
+          itemDownload.textContent = `下载视频 ${videoIndex + 1}`;
+          itemDownload.href = variants[0].url;
+          itemDownload.download = fileName;
+          itemDownload.setAttribute('aria-label', `下载视频 ${videoIndex + 1}`);
+          actions.append(itemDownload);
+
+          const applyVariant = (index) => {
+            const variant = variants[index];
+            if (!variant) return;
+            video.src = variant.url;
+            itemDownload.href = variant.url;
+            itemDownload.download = fileName;
+          };
+          applyVariant(0);
+          qualitySelect.addEventListener('change', () => applyVariant(Number(qualitySelect.value)));
+          itemDownload.addEventListener('click', (event) => {
+            if (isIosDevice()) {
+              event.preventDefault();
+              shareMediaFile(itemDownload.href, fileName, tweetUrl);
+              return;
+            }
+            saveHistory(tweetUrl, 'twitter-video');
+          });
+
+          mediaItem.append(header, video, qualityLabel, actions);
+          mediaList.append(mediaItem);
         });
-        qualityList.value = '0';
-        qualityList.onchange = () => applyOption(Number(qualityList.value));
-        resultHelp.textContent = 'iPhone 点击“下载”会尝试把视频文件送入系统分享面板；若视频源禁止跨域读取，Safari 无法在网页内分享该文件。';
+        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应的下载按钮。iPhone 如果遇到 403，通常是视频源临时链接过期或禁止网页跨域读取，请重新解析。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -698,13 +762,17 @@
         return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       }
 
-      async function shareFromPage() {
+      async function shareMediaFile(mediaUrl, fileName, historyUrl = activeUrl) {
         if (!navigator.share) {
           showToast('当前浏览器不支持系统分享，请使用 Safari 打开此页面');
           return;
         }
         try {
-          const response = await fetch(activeMediaUrl, { mode: 'cors' });
+          const response = await fetch(mediaUrl, { mode: 'cors' });
+          if (response.status === 403) {
+            showToast('视频源返回 403，链接可能已过期或拒绝网页读取，请重新解析后再试');
+            return;
+          }
           if (!response.ok) throw new Error(`视频源返回 ${response.status}`);
           const contentLength = Number(response.headers.get('content-length') || 0);
           if (contentLength > 200 * 1024 * 1024) {
@@ -712,13 +780,13 @@
             return;
           }
           const blob = await response.blob();
-          const file = new File([blob], `localdrop-${Date.now()}.mp4`, { type: blob.type || 'video/mp4' });
+          const file = new File([blob], fileName, { type: blob.type || 'video/mp4' });
           if (!navigator.canShare?.({ files: [file] })) {
             showToast('此 Safari 版本不支持分享视频文件');
             return;
           }
           await navigator.share({ files: [file], title: 'LocalDrop 视频' });
-          saveHistory(activeUrl, 'twitter-video');
+          saveHistory(historyUrl, 'twitter-video');
         } catch (error) {
           if (error?.name === 'AbortError') return;
           if (error instanceof TypeError) {
@@ -727,6 +795,10 @@
           }
           showToast(error instanceof Error ? error.message : '无法分享视频文件，请稍后重试');
         }
+      }
+
+      async function shareFromPage() {
+        return shareMediaFile(activeMediaUrl, `localdrop-${Date.now()}.mp4`, activeUrl);
       }
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
