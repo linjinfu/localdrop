@@ -343,7 +343,7 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>iPhone 点击下载没有反应怎么办？</summary><p>Safari 对跨站视频的下载行为有系统限制。如果 Safari 忽略下载请求并播放视频，网页无法强制将文件写入下载列表；可以在 Safari 播放页使用分享菜单保存到“文件”。</p></details>
+          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会在新页面打开视频。请在 Safari 视频页面点击分享按钮，再选择“存储到文件”。如果新页面被拦截，会在当前页面打开视频。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -610,7 +610,7 @@
           itemDownload.addEventListener('click', (event) => {
             if (isIosDevice()) {
               event.preventDefault();
-              shareMediaFile(itemDownload.href, fileName, tweetUrl);
+              openMediaForSharing(itemDownload.href);
               return;
             }
             saveHistory(tweetUrl, 'twitter-video');
@@ -619,7 +619,7 @@
           mediaItem.append(header, video, qualityLabel, actions);
           mediaList.append(mediaItem);
         });
-        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应的下载按钮。iPhone 如果遇到 403，通常是视频源临时链接过期或禁止网页跨域读取，请重新解析。';
+        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应按钮。iPhone 会在新页面打开视频，请在 Safari 视频页点击分享按钮并选择“存储到文件”。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -752,7 +752,7 @@
         if (!activeUrl) return;
         if (isIosDevice() && activeMediaUrl) {
           event.preventDefault();
-          shareFromPage();
+          openMediaForSharing(activeMediaUrl);
           return;
         }
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
@@ -762,43 +762,14 @@
         return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       }
 
-      async function shareMediaFile(mediaUrl, fileName, historyUrl = activeUrl) {
-        if (!navigator.share) {
-          showToast('当前浏览器不支持系统分享，请使用 Safari 打开此页面');
+      function openMediaForSharing(mediaUrl) {
+        const mediaWindow = window.open(mediaUrl, '_blank');
+        if (mediaWindow) {
+          mediaWindow.opener = null;
+          showToast('已打开视频页面，请在 Safari 视频页点击分享按钮并选择“存储到文件”');
           return;
         }
-        try {
-          const response = await fetch(mediaUrl, { mode: 'cors' });
-          if (response.status === 403) {
-            showToast('视频源返回 403，链接可能已过期或拒绝网页读取，请重新解析后再试');
-            return;
-          }
-          if (!response.ok) throw new Error(`视频源返回 ${response.status}`);
-          const contentLength = Number(response.headers.get('content-length') || 0);
-          if (contentLength > 200 * 1024 * 1024) {
-            showToast('视频超过 200 MB，避免占满 iPhone 内存，请使用 Safari 播放页保存');
-            return;
-          }
-          const blob = await response.blob();
-          const file = new File([blob], fileName, { type: blob.type || 'video/mp4' });
-          if (!navigator.canShare?.({ files: [file] })) {
-            showToast('此 Safari 版本不支持分享视频文件');
-            return;
-          }
-          await navigator.share({ files: [file], title: 'LocalDrop 视频' });
-          saveHistory(historyUrl, 'twitter-video');
-        } catch (error) {
-          if (error?.name === 'AbortError') return;
-          if (error instanceof TypeError) {
-            showToast('视频源禁止网页跨域读取，无法直接分享文件；请用 Safari 播放页的分享功能保存');
-            return;
-          }
-          showToast(error instanceof Error ? error.message : '无法分享视频文件，请稍后重试');
-        }
-      }
-
-      async function shareFromPage() {
-        return shareMediaFile(activeMediaUrl, `localdrop-${Date.now()}.mp4`, activeUrl);
+        window.location.assign(mediaUrl);
       }
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
