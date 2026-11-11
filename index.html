@@ -343,7 +343,7 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会打开一个不会自动播放的查看页。需要保存时，点击查看页的“分享视频链接”按钮，或使用 Safari 的分享菜单。</p></details>
+          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会直接打开原始视频地址。视频列表中的预览默认暂停；原始视频页面的播放状态和分享菜单由 Safari 控制。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -568,8 +568,18 @@
           const video = document.createElement('video');
           video.controls = true;
           video.playsInline = true;
+          video.autoplay = false;
+          video.setAttribute('playsinline', '');
+          video.setAttribute('webkit-playsinline', '');
           video.preload = 'metadata';
           if (item.previewImageUrl) video.poster = item.previewImageUrl;
+          video.addEventListener('loadedmetadata', () => video.pause(), { once: true });
+          video.addEventListener('click', () => {
+            if (video.paused) video.play().catch(() => {});
+          });
+          video.addEventListener('error', () => {
+            meta.textContent = '视频源无法在页面内播放';
+          });
 
           const qualityLabel = document.createElement('label');
           qualityLabel.className = 'quality-select-wrap';
@@ -602,6 +612,7 @@
             const variant = variants[index];
             if (!variant) return;
             video.src = variant.url;
+            video.load();
             itemDownload.href = variant.url;
             itemDownload.download = fileName;
           };
@@ -619,7 +630,7 @@
           mediaItem.append(header, video, qualityLabel, actions);
           mediaList.append(mediaItem);
         });
-        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应按钮。iPhone 会打开不会自动播放的查看页，需要保存时可从查看页发起分享。';
+        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应按钮。iPhone 下载会直接打开原始视频地址，列表中的视频会保持暂停并支持点击播放。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -763,16 +774,14 @@
       }
 
       function openMediaViewer(mediaUrl, historyUrl = activeUrl) {
-        const viewerUrl = new URL('./viewer.html', window.location.href);
-        viewerUrl.searchParams.set('src', mediaUrl);
-        const mediaWindow = window.open(viewerUrl.href, '_blank');
+        const mediaWindow = window.open(mediaUrl, '_blank');
         saveHistory(historyUrl, 'twitter-video');
         if (mediaWindow) {
           mediaWindow.opener = null;
-          showToast('已打开视频查看页，视频默认暂停；需要保存时可点击页面分享按钮');
+          showToast('已打开原始视频地址；播放状态由 Safari 控制');
           return;
         }
-        window.location.assign(viewerUrl.href);
+        window.location.assign(mediaUrl);
       }
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';
