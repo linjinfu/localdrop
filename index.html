@@ -343,7 +343,7 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会先尝试直接打开系统分享面板。若当前 Safari 不支持分享链接，再打开视频页面；此时可点击 Safari 的分享按钮并选择“存储到文件”。</p></details>
+          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会打开一个不会自动播放的查看页。需要保存时，点击查看页的“分享视频链接”按钮，或使用 Safari 的分享菜单。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -610,7 +610,7 @@
           itemDownload.addEventListener('click', (event) => {
             if (isIosDevice()) {
               event.preventDefault();
-              shareMediaUrl(itemDownload.href, tweetUrl);
+              openMediaViewer(itemDownload.href, tweetUrl);
               return;
             }
             saveHistory(tweetUrl, 'twitter-video');
@@ -619,7 +619,7 @@
           mediaItem.append(header, video, qualityLabel, actions);
           mediaList.append(mediaItem);
         });
-        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应按钮。iPhone 会先尝试打开系统分享面板，分享链接后可选择可用的保存操作。';
+        resultHelp.textContent = '每个视频单独列出；选择画质后点击对应按钮。iPhone 会打开不会自动播放的查看页，需要保存时可从查看页发起分享。';
         saveHistory(tweetUrl, 'twitter-video');
       }
 
@@ -752,7 +752,7 @@
         if (!activeUrl) return;
         if (isIosDevice() && activeMediaUrl) {
           event.preventDefault();
-          shareMediaUrl(activeMediaUrl, activeUrl);
+          openMediaViewer(activeMediaUrl, activeUrl);
           return;
         }
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
@@ -762,27 +762,17 @@
         return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       }
 
-      function shareMediaUrl(mediaUrl, historyUrl = activeUrl) {
-        if (!navigator.share) {
-          openMediaForSharing(mediaUrl);
-          return;
-        }
-        navigator.share({ title: 'LocalDrop 视频', url: mediaUrl })
-          .then(() => saveHistory(historyUrl, 'twitter-video'))
-          .catch((error) => {
-            if (error?.name === 'AbortError') return;
-            openMediaForSharing(mediaUrl);
-          });
-      }
-
-      function openMediaForSharing(mediaUrl) {
-        const mediaWindow = window.open(mediaUrl, '_blank');
+      function openMediaViewer(mediaUrl, historyUrl = activeUrl) {
+        const viewerUrl = new URL('./viewer.html', window.location.href);
+        viewerUrl.searchParams.set('src', mediaUrl);
+        const mediaWindow = window.open(viewerUrl.href, '_blank');
+        saveHistory(historyUrl, 'twitter-video');
         if (mediaWindow) {
           mediaWindow.opener = null;
-          showToast('已打开视频页面，请在 Safari 视频页点击分享按钮并选择可用的保存操作');
+          showToast('已打开视频查看页，视频默认暂停；需要保存时可点击页面分享按钮');
           return;
         }
-        window.location.assign(mediaUrl);
+        window.location.assign(viewerUrl.href);
       }
 
       resolverInput.value = localStorage.getItem(resolverKey) || '';

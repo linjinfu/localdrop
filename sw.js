@@ -1,5 +1,5 @@
-const CACHE_NAME = 'localdrop-v6';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'localdrop-v7';
+const APP_SHELL = ['./', './index.html', './viewer.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
