@@ -1,4 +1,4 @@
-const CACHE_NAME = 'localdrop-v5';
+const CACHE_NAME = 'localdrop-v6';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
