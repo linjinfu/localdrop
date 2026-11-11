@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1020" />
-    <meta name="description" content="一个无需后端、可在手机浏览器运行的本地视频下载器。" />
+    <meta name="description" content="手机视频下载器，支持 X 帖子解析、画质选择和可选的浏览器文件下载接口。" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <title>LocalDrop · 手机视频下载器</title>
@@ -178,6 +178,14 @@
       .primary-button { flex: 1; border: 0; color: white; background: linear-gradient(135deg, var(--accent-strong), #2aa8df); box-shadow: 0 12px 28px rgba(72, 101, 242, 0.27); }
       .secondary-button { border: 1px solid rgba(148, 163, 184, 0.2); color: #d8def1; background: rgba(148, 163, 184, 0.08); }
       .primary-button:hover, .secondary-button:hover { filter: brightness(1.08); }
+      .primary-button[aria-busy="true"] {
+        cursor: wait;
+        opacity: 0.6;
+      }
+      .primary-button:focus-visible, .secondary-button:focus-visible {
+        outline: 2px solid var(--cyan);
+        outline-offset: 4px;
+      }
       .primary-button:active, .secondary-button:active { transform: translateY(1px); }
       .support-note { margin: 12px 2px 0; color: #7f8cab; font-size: 12px; line-height: 1.6; }
 
@@ -207,8 +215,24 @@
       .media-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
       .media-item-title { margin: 0; color: #eef2ff; font-size: 15px; }
       .media-item-meta { color: #8a98b3; font-size: 12px; }
-      .media-thumbnail { display: grid; aspect-ratio: 16 / 9; place-items: center; overflow: hidden; border-radius: 12px; background: #070a13; }
-      .media-thumbnail img { display: block; width: 100%; height: 100%; object-fit: contain; }
+      .media-thumbnail {
+        position: relative;
+        display: grid;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #070a13;
+      }
+      .media-thumbnail img {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
       .media-thumbnail-placeholder { padding: 20px; color: #8a98b3; font-size: 13px; text-align: center; }
       .media-item .quality-select-wrap { margin-top: 12px; }
       .media-item .result-actions { margin-top: 12px; }
@@ -268,13 +292,13 @@
           </span>
           <span>LocalDrop</span>
         </div>
-        <span class="local-badge"><span class="dot"></span>纯本地运行</span>
+        <span class="local-badge"><span class="dot"></span>支持手机浏览器</span>
       </header>
 
       <section class="hero" aria-labelledby="page-title">
         <p class="eyebrow">Mobile video utility</p>
         <h1 id="page-title">手机视频下载器</h1>
-        <p class="hero-copy">把视频直链粘贴进来，直接在手机浏览器里预览和保存。无需账号、无需后端、历史记录只保存在这台设备上。</p>
+        <p class="hero-copy">粘贴 X / Twitter 链接，选择视频和画质。配置下载接口后，可请求浏览器直接下载文件。</p>
       </section>
 
       <section class="card input-card" aria-label="视频链接输入">
@@ -315,6 +339,22 @@
         <p class="result-help" id="result-help"></p>
       </section>
 
+      <section class="section" aria-labelledby="download-service-title">
+        <details class="card resolver-settings">
+          <summary id="download-service-title">浏览器下载接口</summary>
+          <div class="resolver-content">
+            <p class="section-lead">填入已部署的下载 Worker 地址，让 X 视频按文件下载。不需要 X API Token；留空时仍打开视频原地址。</p>
+            <label class="field-label" for="download-service-url">下载 Worker 地址</label>
+            <input class="resolver-input" id="download-service-url" type="url" placeholder="https://localdrop-resolver.example.workers.dev" autocomplete="url" />
+            <div class="action-row">
+              <button class="primary-button" id="save-download-service-button" type="button">保存到此设备</button>
+              <button class="secondary-button" id="clear-download-service-button" type="button">清除</button>
+            </div>
+            <p class="support-note">只填 Worker 的 HTTPS 地址。视频会经过你的下载接口，Safari 可能弹出下载确认。部署步骤见 README。</p>
+          </div>
+        </details>
+      </section>
+
       <section class="section" aria-labelledby="resolver-title">
         <details class="card resolver-settings">
           <summary id="resolver-title">自定义解析接口（可选）</summary>
@@ -337,7 +377,7 @@
         <div class="steps">
           <article class="step"><span class="step-number">1</span><div><h3>复制链接</h3><p>从视频页面复制媒体直链或分享文本。</p></div></article>
           <article class="step"><span class="step-number">2</span><div><h3>粘贴链接</h3><p>点击输入框右上角的剪贴板按钮。</p></div></article>
-          <article class="step"><span class="step-number">3</span><div><h3>保存资源</h3><p>预览后点击下载，iPhone 可长按视频选择存储。</p></div></article>
+          <article class="step"><span class="step-number">3</span><div><h3>保存资源</h3><p>选择画质后点击下载，按浏览器提示确认保存。</p></div></article>
         </div>
       </section>
 
@@ -345,7 +385,8 @@
         <h2 class="section-heading" id="faq-title">常见问题</h2>
         <div class="faq-list">
           <details><summary>为什么不用注册也能尝试解析？</summary><p>页面默认使用公开的 FxTwitter 接口，把帖子 ID 发给第三方服务并读取返回的媒体信息。它不需要你的 X API Token，但可能限流、暂时不可用或更改接口格式。</p></details>
-          <details><summary>iPhone 点击下载后如何保存？</summary><p>页面会直接打开原始视频地址。视频列表使用接口返回的封面图，不会自动播放；原始视频页面的播放状态和分享菜单由 Safari 控制。</p></details>
+          <details><summary>iPhone 点击下载后如何保存？</summary><p>配置“浏览器下载接口”后，X 视频会以附件形式请求下载，Safari 可能要求你点击“下载”确认。没有配置时仍打开视频原地址。视频列表只显示封面图。</p></details>
+          <details><summary>下载接口需要 X API Token 吗？</summary><p>不需要。只需部署随附的 Worker 并绑定 RATE_LIMITS 存储。帖子解析仍可使用公开接口；下载接口只负责转发 X 视频文件，不能保证解决源站的 403。</p></details>
           <details><summary>我的下载记录会上传吗？</summary><p>不会。最近使用的链接只写入当前浏览器的 localStorage，也可以随时点击“清空”删除。</p></details>
           <details><summary>可以下载受版权保护的内容吗？</summary><p>请只保存你有权使用或备份的内容，并遵守来源平台的服务条款和当地法律。</p></details>
         </div>
@@ -372,14 +413,17 @@
       const resolverInput = document.querySelector('#resolver-url');
       const saveResolverButton = document.querySelector('#save-resolver-button');
       const clearResolverButton = document.querySelector('#clear-resolver-button');
+      const downloadServiceInput = document.querySelector('#download-service-url');
+      const saveDownloadServiceButton = document.querySelector('#save-download-service-button');
+      const clearDownloadServiceButton = document.querySelector('#clear-download-service-button');
       const resultHelp = document.querySelector('#result-help');
       const toastMessage = document.querySelector('#toast-message');
       const historyKey = 'localdrop-history-v1';
       const resolverKey = 'localdrop-resolver-url-v1';
-      const pageStateKey = 'localdrop-page-state-v1';
-      const pageStateMaxAge = 30 * 60 * 1000;
+      const downloadServiceKey = 'localdrop-download-service-url-v1';
+      const defaultDownloadServiceEndpoint = 'https://localdrop-download.1079541240.workers.dev';
+      const downloadChecks = new WeakMap();
       let activeUrl = '';
-      let currentResult = null;
       let toastTimer;
 
       const mediaPatterns = {
@@ -423,105 +467,23 @@
         }
       }
 
-      function clearPageState() {
+      function clearLegacyPageState() {
+        const legacyStateKey = 'localdrop-page-state-v1';
         try {
-          sessionStorage.removeItem(pageStateKey);
+          sessionStorage.removeItem(legacyStateKey);
         } catch {
           // Storage may be unavailable in private or embedded browsers.
         }
         try {
-          localStorage.removeItem(pageStateKey);
+          localStorage.removeItem(legacyStateKey);
         } catch {
           // Clearing the session must not depend on persistent storage.
         }
       }
 
-      function savePageState() {
-        if (!currentResult) {
-          clearPageState();
-          return;
-        }
-        const selectedQualities = Array.from(mediaList.querySelectorAll('select'), (select) => select.value);
-        const savedState = JSON.stringify({
-          inputValue: input.value,
-          result: currentResult,
-          selectedQualities,
-          scrollY: window.scrollY,
-          savedAt: Date.now(),
-        });
-        try {
-          sessionStorage.setItem(pageStateKey, savedState);
-        } catch {
-          // Opening a video must still work if browser storage is unavailable.
-        }
-        try {
-          localStorage.setItem(pageStateKey, savedState);
-        } catch {
-          // The session copy remains usable if the backup cannot be written.
-        }
-      }
-
-      function restorePageState() {
-        if (currentResult) return;
-        try {
-          let state = null;
-          try {
-            state = JSON.parse(sessionStorage.getItem(pageStateKey) || 'null');
-          } catch {
-            // A new browsing context can still use the short-lived backup.
-          }
-          if (!state) {
-            try {
-              state = JSON.parse(localStorage.getItem(pageStateKey) || 'null');
-            } catch {
-              // Start normally when no readable backup is available.
-            }
-            if (state && (!Number.isFinite(state.savedAt) || Date.now() - state.savedAt > pageStateMaxAge || state.savedAt > Date.now())) {
-              clearPageState();
-              return;
-            }
-          }
-          if (!state || typeof state.inputValue !== 'string' || typeof state.result?.url !== 'string') {
-            clearPageState();
-            return;
-          }
-          const result = state.result;
-          if (result.kind !== 'twitter' && result.kind !== 'direct') return;
-          if (result.kind === 'twitter' && !Array.isArray(result.media)) return;
-          if (result.kind === 'direct' && result.type !== 'video' && result.type !== 'image') return;
-          input.value = state.inputValue;
-          activeUrl = result.url;
-          if (result.kind === 'twitter') {
-            showResolvedMedia(result.media, result.url);
-          } else {
-            showMedia(result.url, result.type);
-          }
-          if (!currentResult) return;
-          const selectedQualities = Array.isArray(state.selectedQualities) ? state.selectedQualities : [];
-          mediaList.querySelectorAll('select').forEach((select, index) => {
-            const value = selectedQualities[index];
-            if (!Array.from(select.options).some((option) => option.value === value)) return;
-            select.value = value;
-            select.dispatchEvent(new Event('change'));
-          });
-          const scrollY = Number.isFinite(state.scrollY) ? Math.max(0, state.scrollY) : 0;
-          const restoredResult = currentResult;
-          window.requestAnimationFrame(() => {
-            if (currentResult !== restoredResult) return;
-            const previousScrollBehavior = document.documentElement.style.scrollBehavior;
-            document.documentElement.style.scrollBehavior = 'auto';
-            window.scrollTo(0, scrollY);
-            document.documentElement.style.scrollBehavior = previousScrollBehavior;
-            savePageState();
-          });
-        } catch {
-          clearPageState();
-        }
-      }
-
       function clearPreview() {
-        currentResult = null;
-        clearPageState();
+        cancelDownloadCheck(downloadButton);
+        mediaList.querySelectorAll('a').forEach(cancelDownloadCheck);
         preview.replaceChildren();
         preview.hidden = false;
         mediaList.replaceChildren();
@@ -531,6 +493,9 @@
         qualityWrap.hidden = true;
         downloadButton.hidden = true;
         downloadButton.removeAttribute('href');
+        downloadButton.removeAttribute('data-media-url');
+        downloadButton.removeAttribute('data-file-name');
+        downloadButton.removeAttribute('data-download-mode');
       }
 
       function showUnsupported(url, title, messageText) {
@@ -572,18 +537,20 @@
         downloadButton.hidden = false;
         qualityList.replaceChildren();
         qualityWrap.hidden = true;
-        resultHelp.textContent = '点击“下载”请求浏览器保存文件。若 iPhone Safari 改为播放视频，这是 Safari 对跨站媒体下载的限制。';
-        currentResult = { kind: 'direct', url, type };
+        updateDownloadHelp();
         saveHistory(url, type);
-        savePageState();
       }
 
       function getWorkerEndpoint() {
-        const value = resolverInput.value.trim();
+        return getServiceEndpoint(resolverInput.value);
+      }
+
+      function getServiceEndpoint(rawValue) {
+        const value = rawValue.trim();
         if (!value) return '';
         try {
           const endpoint = new URL(value);
-          if (endpoint.protocol !== 'https:') return '';
+          if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) return '';
           return endpoint.href.replace(/\/$/, '');
         } catch {
           return '';
@@ -722,20 +689,17 @@
           applyVariant(0);
           qualitySelect.addEventListener('change', () => {
             applyVariant(Number(qualitySelect.value));
-            savePageState();
           });
-          itemDownload.addEventListener('click', () => {
-            savePageState();
+          itemDownload.addEventListener('click', (event) => {
             saveHistory(tweetUrl, 'twitter-video');
+            requestDownload(event, itemDownload);
           });
 
           mediaItem.append(header, thumbnail, qualityLabel, actions);
           mediaList.append(mediaItem);
         });
-        resultHelp.textContent = '每个视频显示接口提供的封面图；选择画质后点击对应按钮下载。封面图不一定是视频文件的第一帧。';
-        currentResult = { kind: 'twitter', url: tweetUrl, media: videoItems };
+        updateDownloadHelp();
         saveHistory(tweetUrl, 'twitter-video');
-        savePageState();
       }
 
       async function fetchJson(url) {
@@ -854,6 +818,38 @@
         resolverInput.value = '';
         showToast('已清除解析接口');
       });
+      saveDownloadServiceButton.addEventListener('click', () => {
+        const endpoint = getServiceEndpoint(downloadServiceInput.value);
+        if (!endpoint) {
+          showToast('请输入有效的 HTTPS 下载 Worker 地址');
+          downloadServiceInput.focus();
+          return;
+        }
+        if (new URL(endpoint).pathname !== '/') {
+          showToast('只需填写 Worker 主地址，不要添加 /api/download 或其他路径');
+          downloadServiceInput.focus();
+          return;
+        }
+        let hasSavedSetting = true;
+        try {
+          localStorage.setItem(downloadServiceKey, endpoint);
+        } catch {
+          hasSavedSetting = false;
+        }
+        downloadServiceInput.value = endpoint;
+        updateDownloadLinks();
+        showToast(hasSavedSetting ? '下载接口已启用，点击视频对应的下载按钮即可尝试' : '浏览器无法保存设置，本次页面仍可使用下载接口');
+      });
+      clearDownloadServiceButton.addEventListener('click', () => {
+        try {
+          localStorage.setItem(downloadServiceKey, '');
+        } catch {
+          // Clearing the active setting must work even if storage is blocked.
+        }
+        downloadServiceInput.value = '';
+        updateDownloadLinks();
+        showToast('已停用下载接口');
+      });
       input.addEventListener('keydown', (event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') parseInput();
       });
@@ -864,10 +860,10 @@
         clearPreview();
         showToast('已清空');
       });
-      downloadButton.addEventListener('click', () => {
+      downloadButton.addEventListener('click', (event) => {
         if (!activeUrl) return;
-        savePageState();
         saveHistory(activeUrl, getMediaType(activeUrl) || 'media');
+        requestDownload(event, downloadButton);
       });
 
       function isIosDevice() {
@@ -875,6 +871,23 @@
       }
 
       function setDownloadLink(link, mediaUrl, fileName) {
+        cancelDownloadCheck(link);
+        link.setAttribute('data-media-url', mediaUrl);
+        link.setAttribute('data-file-name', fileName);
+        link.setAttribute('data-download-mode', 'direct');
+        link.removeAttribute('target');
+        link.removeAttribute('rel');
+        link.removeAttribute('download');
+        const endpoint = getServiceEndpoint(downloadServiceInput.value);
+        if (endpoint && checkIsDownloadVideo(mediaUrl)) {
+          const downloadUrl = new URL(`${endpoint}/api/download`);
+          downloadUrl.searchParams.set('url', mediaUrl);
+          downloadUrl.searchParams.set('filename', fileName);
+          link.href = downloadUrl.href;
+          link.download = fileName;
+          link.setAttribute('data-download-mode', 'proxy');
+          return;
+        }
         link.href = mediaUrl;
         if (isIosDevice()) {
           link.removeAttribute('download');
@@ -885,17 +898,110 @@
         }
       }
 
+      function checkIsDownloadVideo(value) {
+        try {
+          const url = new URL(value);
+          return url.protocol === 'https:' && url.hostname === 'video.twimg.com' && !url.username && !url.password && !url.port && /\.mp4$/i.test(url.pathname);
+        } catch {
+          return false;
+        }
+      }
+
+      function getDownloadLinks() {
+        return Array.from(document.querySelectorAll('a[data-media-url]'));
+      }
+
+      function updateDownloadHelp() {
+        const links = getDownloadLinks();
+        if (!links.length) return;
+        if (links.some((link) => link.getAttribute('data-download-mode') === 'proxy')) {
+          resultHelp.textContent = '点击下载会先检查视频来源，再交给浏览器保存文件；Safari 可能弹出下载确认。';
+        } else if (getServiceEndpoint(downloadServiceInput.value)) {
+          resultHelp.textContent = '下载接口仅支持 X 的 MP4 视频，当前资源将使用原始地址下载。';
+        } else {
+          resultHelp.textContent = '未配置“浏览器下载接口”时，iPhone 会打开视频原地址；配置后可尝试直接下载 X 视频文件。';
+        }
+      }
+
+      function updateDownloadLinks() {
+        getDownloadLinks().forEach((link) => {
+          setDownloadLink(link, link.getAttribute('data-media-url'), link.getAttribute('data-file-name'));
+        });
+        updateDownloadHelp();
+      }
+
+      function cancelDownloadCheck(link) {
+        const pendingCheck = downloadChecks.get(link);
+        if (!pendingCheck) return;
+        downloadChecks.delete(link);
+        pendingCheck.controller.abort();
+        link.removeAttribute('aria-busy');
+        link.removeAttribute('aria-disabled');
+        link.textContent = pendingCheck.originalText;
+      }
+
+      async function requestDownload(event, link) {
+        if (link.getAttribute('data-download-mode') !== 'proxy') return;
+        event.preventDefault();
+        if (link.getAttribute('aria-busy') === 'true') return;
+        link.setAttribute('aria-busy', 'true');
+        link.setAttribute('aria-disabled', 'true');
+        const downloadUrl = link.href;
+        const originalText = link.textContent;
+        link.textContent = '正在检查视频…';
+        const controller = new AbortController();
+        const pendingCheck = { controller, originalText };
+        downloadChecks.set(link, pendingCheck);
+        const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+        try {
+          const response = await fetch(downloadUrl, {
+            method: 'HEAD',
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            const message = response.headers.get('x-download-error');
+            throw new Error(message ? decodeURIComponent(message) : `下载接口返回 ${response.status}，请检查部署和视频地址`);
+          }
+          if (!/^attachment\b/i.test(response.headers.get('content-disposition') || '')) {
+            throw new Error('下载接口未返回文件附件，请确认使用的是配套 Worker');
+          }
+          if (downloadChecks.get(link) !== pendingCheck || !link.isConnected || link.hidden || link.href !== downloadUrl) return;
+          showToast('已请求浏览器下载，如出现确认窗口请选择“下载”');
+          window.location.assign(downloadUrl);
+        } catch (error) {
+          if (downloadChecks.get(link) !== pendingCheck) return;
+          const message = controller.signal.aborted
+            ? '检查视频超时，请稍后重试'
+            : error instanceof TypeError
+              ? '无法连接下载接口，请检查 Worker 地址和 ALLOWED_ORIGIN 配置'
+              : error instanceof Error ? error.message : '下载请求失败，请稍后重试';
+          showToast(message);
+        } finally {
+          window.clearTimeout(timeoutId);
+          if (downloadChecks.get(link) === pendingCheck) {
+            downloadChecks.delete(link);
+            link.removeAttribute('aria-busy');
+            link.removeAttribute('aria-disabled');
+            link.textContent = originalText;
+          }
+        }
+      }
+
       try {
         resolverInput.value = localStorage.getItem(resolverKey) || '';
       } catch {
         resolverInput.value = '';
       }
-      restorePageState();
-      window.addEventListener('pagehide', savePageState);
-      window.addEventListener('pageshow', restorePageState);
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') savePageState();
-      });
+      try {
+        const savedDownloadServiceEndpoint = localStorage.getItem(downloadServiceKey);
+        downloadServiceInput.value = getServiceEndpoint(savedDownloadServiceEndpoint === null ? defaultDownloadServiceEndpoint : savedDownloadServiceEndpoint);
+      } catch {
+        downloadServiceInput.value = defaultDownloadServiceEndpoint;
+      }
+      clearLegacyPageState();
 
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
